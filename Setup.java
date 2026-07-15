@@ -13,7 +13,7 @@ public class Setup{
 	public Setup(int categories, int accounts){
 		income = 0;
 		expenses  = 0;
-	}
+	} 
 	
 	public void setIncome(double income){
 		this.income = income;
