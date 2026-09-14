@@ -25,5 +25,15 @@ public class Expenses {
         this.amounts = amounts;
     }
 
+    public double getTotalExpenses() {
+        double total = 0.0;
+        for (double amount : amounts) {
+            total += amount;
+        }
+        return total;
+    }
+
+    
+
 
 }
