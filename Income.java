@@ -2,12 +2,12 @@ import java.util.Date;
 import java.util.ArrayList;
 
 public class Income {
-    private double TotalIncome;
-    private Date date;
-    private String endDate;
-    private double taxRate;
-    private ArrayList<String> otherIncomeSources;
-    private ArrayList<Double> amounts;
+    private double TotalIncome; // the amount of income before tax
+    private Date date;  //begin of month
+    private String endDate; // end of month
+    private double taxRate; // the tax rate as a decimal (e.g., 0.2 for 20%)
+    private ArrayList<String> otherIncomeSources; // a list of other income sources
+    private ArrayList<Double> amounts; // a list of amounts corresponding to the other income sources
 
     public Income(double TotalIncome, Date date, String endDate, double taxRate, ArrayList<String> otherIncomeSources, ArrayList<Double> amounts) {
         this.TotalIncome = TotalIncome;
@@ -66,6 +66,8 @@ public class Income {
         this.amounts = amounts;
     }
 
+
+    //method to calculate the total income after tax, including other income sources
     public double calculateTotalIncome() {
         double total = 0;
         for (double amount : amounts) {
