@@ -19,7 +19,7 @@ public class Main {
         ArrayList<Double> expenseAmounts = new ArrayList<>();
         expenseAmounts.add(1200.0);
         expenseAmounts.add(300.0);
-        Expenses expenses = new Expenses(expenseCategories, expenseAmounts);
+        Expenses expenses = new Expenses(expenseCategories, expenseAmounts, new Date(), "2024-12-31");
 
         // Display total income and expenses
         System.out.println("Total Income: " + income.getTotalIncome());
