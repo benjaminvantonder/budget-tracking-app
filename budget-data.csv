@@ -1,2 +1,4 @@
 startDate,endDate,actualIncome,budgetedIncome,actualExpenses,budgetedExpenses
 2026-09-14,2026-10-14,40000.00,40000.00,200.00,6000.00
+2026-09-14,2026-10-14,40000.00,40000.00,10200.00,5000.00,Food=200.00|Phone=3000.00|Art Supplies=1000.00|Feul=6000.00
+2026-08-25,2026-09-24,7000.00,8000.00,2300.00,3300.00,Food=500.00|Car=200.00|Feul=600.00|Entertainment=1000.00,Food=400.00|Car=400.00|Feul=1000.00|Entertainment=1500.00

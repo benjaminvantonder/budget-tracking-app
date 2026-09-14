@@ -1,4 +1,6 @@
 import java.util.Locale;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Objects;
 
 public class Report {
@@ -53,6 +55,7 @@ public class Report {
 		chart.append("BUDGET REPORT\n");
 		chart.append("=============\n");
 		appendSection(chart, "EXPENSES", expectedExpenses, actualExpenses, largestValue);
+		appendCategoryBreakdown(chart);
 		chart.append('\n');
 		appendSection(chart, "INCOME", expectedIncome, actualIncome, largestValue);
 		chart.append('\n');
@@ -61,6 +64,39 @@ public class Report {
 		chart.append(String.format(Locale.US, "Income difference:  %+.2f (actual - budget)%n",
 				getIncomeVariance()));
 		return chart.toString();
+	}
+
+	private void appendCategoryBreakdown(StringBuilder chart) {
+		Map<String, Double> budgetedByCategory = toCategoryMap(
+				budgetExpenses.getOtherExpenseSources(), budgetExpenses.getAmounts());
+		Map<String, Double> actualByCategory = toCategoryMap(
+				expenses.getExpensesCategories(), expenses.getAmounts());
+		Map<String, Double> categories = new LinkedHashMap<>(budgetedByCategory);
+		actualByCategory.keySet().forEach(category -> categories.putIfAbsent(category, 0.0));
+
+		chart.append("Expenses by category\n");
+		chart.append(String.format(Locale.US, "  %-18s %12s %12s %12s%n",
+				"Category", "Budgeted", "Actual", "Difference"));
+		if (categories.isEmpty()) {
+			chart.append("  None\n");
+			return;
+		}
+
+		for (String category : categories.keySet()) {
+			double budgeted = budgetedByCategory.getOrDefault(category, 0.0);
+			double actual = actualByCategory.getOrDefault(category, 0.0);
+			chart.append(String.format(Locale.US, "  %-18s %12.2f %12.2f %12.2f%n",
+					category, budgeted, actual, budgeted - actual));
+		}
+	}
+
+	private Map<String, Double> toCategoryMap(java.util.ArrayList<String> categories,
+			java.util.ArrayList<Double> amounts) {
+		Map<String, Double> result = new LinkedHashMap<>();
+		for (int index = 0; index < categories.size(); index++) {
+			result.put(categories.get(index), amounts.get(index));
+		}
+		return result;
 	}
 
 	public void printChart() {

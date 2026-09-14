@@ -6,13 +6,15 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.List;
 import java.util.Scanner;
 
 public class Main {
     private static final Path DATA_FILE = Path.of("budget-data.csv");
     private static final String HEADER =
-            "startDate,endDate,actualIncome,budgetedIncome,actualExpenses,budgetedExpenses";
+            "startDate,endDate,actualIncome,budgetedIncome,actualExpenses,budgetedExpenses,expensesByCategory,budgetedExpensesByCategory";
 
     public static void main(String[] args) {
         try (Scanner scanner = new Scanner(System.in)) {
@@ -47,11 +49,17 @@ public class Main {
 
         double actualIncome = askAmount(scanner, "Actual income after tax: ");
         double budgetedIncome = askAmount(scanner, "Budgeted income after tax: ");
-        double actualExpenses = askAmount(scanner, "Actual expenses: ");
-        double budgetedExpenses = askAmount(scanner, "Budgeted expenses: ");
+        Map<String, Double> expensesByCategory = askExpensesByCategory(scanner, "Actual amount for ");
+        Map<String, Double> budgetedExpensesByCategory = askExpensesByCategory(
+                scanner, "Budgeted amount for ");
+        double actualExpenses = expensesByCategory.values().stream()
+            .mapToDouble(Double::doubleValue).sum();
+        double budgetedExpenses = budgetedExpensesByCategory.values().stream()
+            .mapToDouble(Double::doubleValue).sum();
 
         BudgetEntry entry = new BudgetEntry(startDate, endDate, actualIncome,
-                budgetedIncome, actualExpenses, budgetedExpenses);
+            budgetedIncome, actualExpenses, budgetedExpenses, expensesByCategory,
+                budgetedExpensesByCategory);
         try {
             saveEntry(entry);
             System.out.println("Saved to " + DATA_FILE.toAbsolutePath());
@@ -93,12 +101,20 @@ public class Main {
         double budgetedIncome = 0;
         double actualExpenses = 0;
         double budgetedExpenses = 0;
+        Map<String, Double> expensesByCategory = new LinkedHashMap<>();
+        Map<String, Double> budgetedExpensesByCategory = new LinkedHashMap<>();
 
         for (BudgetEntry entry : entries) {
             actualIncome += entry.actualIncome;
             budgetedIncome += entry.budgetedIncome;
             actualExpenses += entry.actualExpenses;
             budgetedExpenses += entry.budgetedExpenses;
+            for (Map.Entry<String, Double> category : entry.expensesByCategory.entrySet()) {
+                expensesByCategory.merge(category.getKey(), category.getValue(), Double::sum);
+            }
+            for (Map.Entry<String, Double> category : entry.budgetedExpensesByCategory.entrySet()) {
+                budgetedExpensesByCategory.merge(category.getKey(), category.getValue(), Double::sum);
+            }
         }
 
         Date startDate = toDate(entries.get(0).startDate);
@@ -106,10 +122,12 @@ public class Main {
         ArrayList<String> noSources = new ArrayList<>();
 
         BudgetExpenses budgetExpenses = new BudgetExpenses(budgetedExpenses,
-                new ArrayList<>(), amounts(budgetedExpenses), startDate, endDate);
+            new ArrayList<>(budgetedExpensesByCategory.keySet()),
+            new ArrayList<>(budgetedExpensesByCategory.values()), startDate, endDate);
         BudgetIncome budgetIncome = new BudgetIncome(budgetedIncome, 0,
                 new ArrayList<>(), new ArrayList<>(), endDate, startDate);
-        Expenses expenses = new Expenses(new ArrayList<>(), amounts(actualExpenses),
+        Expenses expenses = new Expenses(new ArrayList<>(expensesByCategory.keySet()),
+            new ArrayList<>(expensesByCategory.values()),
                 startDate, endDate);
         Income income = new Income(actualIncome, startDate, endDate, 0,
                 noSources, new ArrayList<>());
@@ -125,9 +143,17 @@ public class Main {
 
     private static void saveEntry(BudgetEntry entry) throws IOException {
         boolean needsHeader = Files.notExists(DATA_FILE) || Files.size(DATA_FILE) == 0;
-        String line = String.format(java.util.Locale.US, "%s,%s,%.2f,%.2f,%.2f,%.2f%n",
+        String categories = entry.expensesByCategory.entrySet().stream()
+            .map(category -> category.getKey() + "="
+                + String.format(java.util.Locale.US, "%.2f", category.getValue()))
+            .collect(java.util.stream.Collectors.joining("|"));
+        String budgetedCategories = entry.budgetedExpensesByCategory.entrySet().stream()
+            .map(category -> category.getKey() + "="
+                + String.format(java.util.Locale.US, "%.2f", category.getValue()))
+            .collect(java.util.stream.Collectors.joining("|"));
+        String line = String.format(java.util.Locale.US, "%s,%s,%.2f,%.2f,%.2f,%.2f,%s,%s%n",
                 entry.startDate, entry.endDate, entry.actualIncome, entry.budgetedIncome,
-                entry.actualExpenses, entry.budgetedExpenses);
+            entry.actualExpenses, entry.budgetedExpenses, categories, budgetedCategories);
         if (needsHeader) {
             line = HEADER + System.lineSeparator() + line;
         }
@@ -145,12 +171,25 @@ public class Main {
                 continue;
             }
             String[] values = line.split(",", -1);
-            if (values.length != 6) {
+            if (values.length < 6 || values.length > 8) {
                 throw new IllegalArgumentException("Invalid row in " + DATA_FILE + ": " + line);
+            }
+            Map<String, Double> expensesByCategory = new LinkedHashMap<>();
+            if (values.length >= 7 && !values[6].isBlank()) {
+                readCategories(values[6], expensesByCategory, line);
+            } else {
+                expensesByCategory.put("Uncategorized", Double.parseDouble(values[4]));
+            }
+            Map<String, Double> budgetedExpensesByCategory = new LinkedHashMap<>();
+            if (values.length == 8 && !values[7].isBlank()) {
+                readCategories(values[7], budgetedExpensesByCategory, line);
+            } else {
+                budgetedExpensesByCategory.put("Uncategorized", Double.parseDouble(values[5]));
             }
             entries.add(new BudgetEntry(LocalDate.parse(values[0]), LocalDate.parse(values[1]),
                     Double.parseDouble(values[2]), Double.parseDouble(values[3]),
-                    Double.parseDouble(values[4]), Double.parseDouble(values[5])));
+                    Double.parseDouble(values[4]), Double.parseDouble(values[5]), expensesByCategory,
+                    budgetedExpensesByCategory));
         }
         return entries;
     }
@@ -181,6 +220,52 @@ public class Main {
         }
     }
 
+    private static void readCategories(String encodedCategories, Map<String, Double> categories,
+                                       String line) {
+        for (String categoryValue : encodedCategories.split("\\|")) {
+            String[] categoryParts = categoryValue.split("=", 2);
+            if (categoryParts.length != 2 || categoryParts[0].isBlank()) {
+                throw new IllegalArgumentException("Invalid expense category in " + DATA_FILE + ": " + line);
+            }
+            categories.put(categoryParts[0], Double.parseDouble(categoryParts[1]));
+        }
+    }
+
+    private static Map<String, Double> askExpensesByCategory(Scanner scanner, String amountPrompt) {
+        int categoryCount = askWholeNumber(scanner, "Number of expense categories: ");
+        Map<String, Double> expensesByCategory = new LinkedHashMap<>();
+        for (int index = 1; index <= categoryCount; index++) {
+            String category;
+            do {
+                System.out.print("Category " + index + " name: ");
+                category = scanner.nextLine().trim();
+                if (category.isBlank() || category.contains(",")
+                        || category.contains("|") || category.contains("=")) {
+                    System.out.println("Enter a category name without commas, pipes, or equals signs.");
+                    category = "";
+                }
+            } while (category.isBlank());
+            double amount = askAmount(scanner, amountPrompt + category + ": ");
+            expensesByCategory.merge(category, amount, Double::sum);
+        }
+        return expensesByCategory;
+    }
+
+    private static int askWholeNumber(Scanner scanner, String prompt) {
+        while (true) {
+            System.out.print(prompt);
+            try {
+                int number = Integer.parseInt(scanner.nextLine().trim());
+                if (number < 0) {
+                    throw new NumberFormatException();
+                }
+                return number;
+            } catch (NumberFormatException exception) {
+                System.out.println("Enter a non-negative whole number.");
+            }
+        }
+    }
+
     private static Date toDate(LocalDate date) {
         return Date.from(date.atStartOfDay(ZoneId.systemDefault()).toInstant());
     }
@@ -192,16 +277,21 @@ public class Main {
         private final double budgetedIncome;
         private final double actualExpenses;
         private final double budgetedExpenses;
+        private final Map<String, Double> expensesByCategory;
+        private final Map<String, Double> budgetedExpensesByCategory;
 
         private BudgetEntry(LocalDate startDate, LocalDate endDate, double actualIncome,
                             double budgetedIncome, double actualExpenses,
-                            double budgetedExpenses) {
+                    double budgetedExpenses, Map<String, Double> expensesByCategory,
+                    Map<String, Double> budgetedExpensesByCategory) {
             this.startDate = startDate;
             this.endDate = endDate;
             this.actualIncome = actualIncome;
             this.budgetedIncome = budgetedIncome;
             this.actualExpenses = actualExpenses;
             this.budgetedExpenses = budgetedExpenses;
+            this.expensesByCategory = expensesByCategory;
+            this.budgetedExpensesByCategory = budgetedExpensesByCategory;
         }
     }
 }
